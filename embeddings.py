@@ -3,8 +3,11 @@ from dotenv import dotenv_values
 from openai import OpenAI
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.tools import tool
 
-def create_embeddings(file_path):
+@tool
+def create_embeddings(file_path: str) -> str:
+    """Creates and stores embeddings for a given PDF file in Pinecone. The input should be the file_path of the PDF document."""
     loader = PyPDFLoader(file_path)
     documents = loader.load()
 
@@ -41,4 +44,4 @@ def create_embeddings(file_path):
         namespace="example-namespace"
     )
 
-    return upsert_response 
+    return "Embeddings created successfully." + str(upsert_response) 

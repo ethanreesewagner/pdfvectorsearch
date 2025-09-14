@@ -78,6 +78,7 @@ chat_history_list = [
     AIMessage(content="Hello! How can I assist you today?")
 ]
 
+'''
 while True:
     user_input = input("You: ")
     if user_input.lower() in ["exit", "quit"]:
@@ -95,3 +96,4 @@ while True:
     agent_response = response["output"]
     print(f"Agent: {agent_response}")
     chat_history_list.append(AIMessage(content=agent_response))
+'''
