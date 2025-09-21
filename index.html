@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Upload & Chat Agent</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f7f7f7;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #fff;
+            padding: 2em 2.5em 2em 2.5em;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        h2 {
+            margin-top: 0;
+        }
+        #uploadForm {
+            margin-bottom: 2em;
+        }
+        #chatBox {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+            height: 300px;
+            overflow-y: auto;
+            padding: 1em;
+            margin-bottom: 1em;
+        }
+        .message {
+            margin-bottom: 1em;
+        }
+        .user {
+            color: #1976d2;
+            font-weight: bold;
+        }
+        .agent {
+            color: #388e3c;
+            font-weight: bold;
+        }
+        #chatInput {
+            width: 80%;
+            padding: 0.5em;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        #sendBtn {
+            padding: 0.5em 1.2em;
+            border-radius: 4px;
+            border: none;
+            background: #1976d2;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #sendBtn:disabled {
+            background: #aaa;
+        }
+        #uploadBtn {
+            margin-top: 0.5em;
+        }
+        #uploadStatus {
+            margin-top: 0.5em;
+            color: #388e3c;
+        }
+        /* Loader styles */
+        .loader {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            border: 2px solid #1976d2;
+            border-top: 2px solid #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 0.5em;
+        }
+        .loader.agent {
+            border-color: #388e3c #fff #388e3c #388e3c;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+        #agentLoading {
+            margin-bottom: 1em;
+            color: #388e3c;
+            display: none;
+            align-items: center;
+        }
+        #embeddingLoading {
+            margin-top: 0.5em;
+            color: #1976d2;
+            display: none;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>PDF Upload</h2>
+        <form id="uploadForm">
+            <input type="file" id="pdfFile" name="file" accept="application/pdf" required>
+            <br>
+            <button type="submit" id="uploadBtn">Upload PDF</button>
+            <div id="uploadStatus"></div>
+            <div id="embeddingLoading"><span class="loader"></span>Creating embeddings, please wait...</div>
+        </form>
+
+        <h2>Chat with Agent</h2>
+        <div id="chatBox"></div>
+        <div id="agentLoading"><span class="loader agent"></span>Waiting for agent response...</div>
+        <form id="chatForm" autocomplete="off">
+            <input type="text" id="chatInput" placeholder="Type your message..." required>
+            <button type="submit" id="sendBtn">Send</button>
+        </form>
+    </div>
+
+    <script>
+        // Set the backend base URL to 127.0.0.1:5000
+        const BASE_URL = "http://127.0.0.1:5000";
+
+        // PDF Upload
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const embeddingLoading = document.getElementById('embeddingLoading');
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            uploadStatus.textContent = '';
+            embeddingLoading.style.display = 'none';
+            const fileInput = document.getElementById('pdfFile');
+            if (!fileInput.files.length) {
+                uploadStatus.textContent = 'Please select a PDF file.';
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            document.getElementById('uploadBtn').disabled = true;
+            uploadStatus.textContent = '';
+            embeddingLoading.style.display = 'flex';
+            try {
+                const response = await fetch(`${BASE_URL}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    embeddingLoading.style.display = 'none';
+                    uploadStatus.textContent = 'Upload successful! PDF processed.';
+                } else {
+                    embeddingLoading.style.display = 'none';
+                    const text = await response.text();
+                    uploadStatus.textContent = 'Upload failed: ' + text;
+                }
+            } catch (err) {
+                embeddingLoading.style.display = 'none';
+                uploadStatus.textContent = 'Error: ' + err.message;
+            }
+            document.getElementById('uploadBtn').disabled = false;
+        });
+
+        // Chat Agent
+        const chatForm = document.getElementById('chatForm');
+        const chatInput = document.getElementById('chatInput');
+        const chatBox = document.getElementById('chatBox');
+        const sendBtn = document.getElementById('sendBtn');
+        const agentLoading = document.getElementById('agentLoading');
+
+        function appendMessage(sender, text) {
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `<span class="${sender}">${sender === 'user' ? 'You' : 'Agent'}:</span> ${text}`;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const message = chatInput.value.trim();
+            if (!message) return;
+            appendMessage('user', message);
+            chatInput.value = '';
+            sendBtn.disabled = true;
+            agentLoading.style.display = 'flex';
+            try {
+                const response = await fetch(`${BASE_URL}/agent`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+                agentLoading.style.display = 'none';
+                if (response.ok) {
+                    const agentReply = await response.text();
+                    appendMessage('agent', agentReply);
+                } else {
+                    appendMessage('agent', 'Error: ' + response.statusText);
+                }
+            } catch (err) {
+                agentLoading.style.display = 'none';
+                appendMessage('agent', 'Error: ' + err.message);
+            }
+            sendBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>

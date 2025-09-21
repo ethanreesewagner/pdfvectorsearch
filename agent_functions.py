@@ -6,7 +6,6 @@ from dotenv import dotenv_values
 from langchain.tools import tool
 import json
 from langchain.prompts import PromptTemplate
-from embeddings import create_embeddings
 
 config=dotenv_values(".env")
 
@@ -28,7 +27,6 @@ prompt_template = PromptTemplate.from_template("""Answer the following questions
 
 Your purpose is to find information in the file and return it to the user.
 
-If you need to create embeddings, you can use the create_embeddings tool.
 If you need to search the file, you can use the get_info tool.
 
 Use the following format:
@@ -57,9 +55,9 @@ llm = ChatOpenAI(
     max_retries=2,
     api_key=config["OPENAI_API_KEY"]
 )    
-tools = [get_info, create_embeddings]
+tools = [get_info]
 
-agent = create_react_agent(llm, tools,prompt=prompt_template)
+agent = create_react_agent(llm, tools, prompt=prompt_template)
 agent_executor = AgentExecutor(agent=agent, tools=tools, handle_parsing_errors=True)
 
 # Use with chat history
@@ -97,3 +95,19 @@ while True:
     print(f"Agent: {agent_response}")
     chat_history_list.append(AIMessage(content=agent_response))
 '''
+
+def process_user_input(user_input: str):
+    #Takes user input, saves it to chat history, invokes the agent, saves agent output to history, and returns agent output.
+
+    chat_history_list.append(HumanMessage(content=user_input))
+    formatted_chat_history = _format_chat_history(chat_history_list)
+
+    response = agent_executor.invoke(
+        {
+            "input": user_input,
+            "chat_history": formatted_chat_history,
+        }
+    )
+    agent_response = response["output"]
+    chat_history_list.append(AIMessage(content=agent_response))
+    return agent_response
