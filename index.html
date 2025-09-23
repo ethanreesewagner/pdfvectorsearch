@@ -125,6 +125,28 @@
         // Set the backend base URL to 127.0.0.1:5000
         const BASE_URL = "http://127.0.0.1:5000";
 
+        // Utility functions for cookies
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days*24*60*60*1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (encodeURIComponent(value) || "")  + expires + "; path=/";
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for(let i=0;i < ca.length;i++) {
+                let c = ca[i];
+                while (c.charAt(0)==' ') c = c.substring(1,c.length);
+                if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length,c.length));
+            }
+            return null;
+        }
+
         // PDF Upload
         const uploadForm = document.getElementById('uploadForm');
         const uploadStatus = document.getElementById('uploadStatus');
@@ -171,6 +193,32 @@
         const sendBtn = document.getElementById('sendBtn');
         const agentLoading = document.getElementById('agentLoading');
 
+        // Chat history array
+        let chatHistory = [];
+
+        // Load chat history from cookies on page load
+        function loadChatFromCookies() {
+            const cookieValue = getCookie('chatHistory');
+            if (cookieValue) {
+                try {
+                    chatHistory = JSON.parse(cookieValue);
+                    chatBox.innerHTML = '';
+                    chatHistory.forEach(msg => {
+                        appendMessage(msg.sender, msg.text);
+                    });
+                } catch (e) {
+                    chatHistory = [];
+                }
+            }
+        }
+
+        // Save chat history to cookies
+        function saveChatToCookies() {
+            // Only keep the last 50 messages to avoid huge cookies
+            const trimmedHistory = chatHistory.slice(-50);
+            setCookie('chatHistory', JSON.stringify(trimmedHistory), 7);
+        }
+
         function appendMessage(sender, text) {
             const div = document.createElement('div');
             div.className = 'message';
@@ -179,11 +227,16 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        // On page load, restore chat
+        window.addEventListener('DOMContentLoaded', loadChatFromCookies);
+
         chatForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const message = chatInput.value.trim();
             if (!message) return;
             appendMessage('user', message);
+            chatHistory.push({ sender: 'user', text: message });
+            saveChatToCookies();
             chatInput.value = '';
             sendBtn.disabled = true;
             agentLoading.style.display = 'flex';
@@ -199,12 +252,18 @@
                 if (response.ok) {
                     const agentReply = await response.text();
                     appendMessage('agent', agentReply);
+                    chatHistory.push({ sender: 'agent', text: agentReply });
+                    saveChatToCookies();
                 } else {
                     appendMessage('agent', 'Error: ' + response.statusText);
+                    chatHistory.push({ sender: 'agent', text: 'Error: ' + response.statusText });
+                    saveChatToCookies();
                 }
             } catch (err) {
                 agentLoading.style.display = 'none';
                 appendMessage('agent', 'Error: ' + err.message);
+                chatHistory.push({ sender: 'agent', text: 'Error: ' + err.message });
+                saveChatToCookies();
             }
             sendBtn.disabled = false;
         });
